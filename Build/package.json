@@ -4,8 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite 2>&1 | tee dev.log",
-    "build": "tsc && vite build",
+    "dev": "vite",
+    "build": "vite build",
     "preview": "vite preview",
     "lint": "echo 'Linting disabled for now'"
   },

@@ -23,7 +23,8 @@
     "types": [
       "vite/client",
       "jasmine",
-      "node"
+      "node",
+      "types"
     ]
   },
   "include": [

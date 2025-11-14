@@ -37,7 +37,7 @@ export function useID3Processor() {
         (writer as any).setFrame('TPE2', tags.albumArtist);
       }
       if (tags.genre) {
-        (writer as any).setFrame('TCON', tags.genre);
+        (writer as any).setFrame('TCON', [tags.genre]);
       }
       if (tags.year) {
         (writer as any).setFrame('TDRC', tags.year);

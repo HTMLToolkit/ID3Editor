@@ -23,7 +23,6 @@ export function useID3Processor() {
       const { ID3Writer } = id3Module;
       const writer = new ID3Writer(arrayBuffer);
 
-      // Set basic tags
       if (tags.title) {
         (writer as any).setFrame('TIT2', tags.title);
       }
@@ -40,7 +39,7 @@ export function useID3Processor() {
         (writer as any).setFrame('TCON', [tags.genre]);
       }
       if (tags.year) {
-        (writer as any).setFrame('TDRC', tags.year);
+        (writer as any).setFrame('TYER', tags.year);
       }
       if (tags.track) {
         (writer as any).setFrame('TRCK', tags.track);
@@ -52,7 +51,6 @@ export function useID3Processor() {
         });
       }
 
-      // Set Album Art
       if (albumArtUrl) {
         try {
           const response = await fetch(albumArtUrl);
@@ -70,7 +68,6 @@ export function useID3Processor() {
         }
       }
 
-      // Set SYLT frame
       if (syltFrame.text.length > 0) {
         const formattedText = syltFrame.text.map(([text, timestamp]) => [
           String(text || ''),

@@ -16,9 +16,9 @@ export function SyncedLyricsSection({
   };
 
   const handleUpdateEntry = (index: number, text: string, timestamp: number) => {
-    const updated = syltFrame.text.map((item, i) =>
+    const updated: [string, number][] = syltFrame.text.map((item, i) =>
       i === index ? [text, timestamp] : item
-    );
+    ) as [string, number][];
     onTextChange(updated);
   };
 

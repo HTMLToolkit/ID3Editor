@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { Music, Bug } from 'lucide-react';
 import { FileUploadSection } from './Upload';
 import { BasicTagsSection } from './BasicTags';
+import { AlbumArtSection } from './AlbumArt';
 import { SyncedLyricsSection } from './SyncedLyrics';
 import { LrcImportSection } from './Import';
 import { ProcessButton } from './Process';
@@ -12,6 +13,7 @@ import { useLRCParser } from '../hooks/useLRCParser';
 export default function App() {
   const [file, setFile] = useState<File | null>(null);
   const [tags, setTags] = useState<ID3Tags>({});
+  const [albumArtUrl, setAlbumArtUrl] = useState<string | null>(null);
   const [syltFrame, setSyltFrame] = useState<SYLTFrame>({
     type: 1,
     text: [],
@@ -65,7 +67,7 @@ export default function App() {
     setError(null);
     setSuccess(null);
     
-    const result = await processFile(file, tags, syltFrame);
+    const result = await processFile(file, tags, syltFrame, albumArtUrl);
     if (result.success) {
       setSuccess(result.message);
     } else {
@@ -101,7 +103,7 @@ export default function App() {
           <h1 className="text-2xl font-bold">ID3Editor</h1>
         </div>
         <p className="text-muted-foreground mb-6">
-          Edit all your ID3 tags including synced lyrics (SYLT) directly in the browser.
+          Edit all your ID3 tags including synced lyrics (SYLT) and album art directly in the browser.
         </p>
 
         {/* Messages */}
@@ -120,6 +122,9 @@ export default function App() {
 
       {/* Basic Tags */}
       <BasicTagsSection tags={tags} onTagChange={handleTagChange} />
+
+      {/* Album Art */}
+      <AlbumArtSection albumArtUrl={albumArtUrl} onAlbumArtChange={setAlbumArtUrl} />
 
       {/* Synced Lyrics */}
       <SyncedLyricsSection

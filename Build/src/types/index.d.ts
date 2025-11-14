@@ -2,6 +2,7 @@ interface ID3Tags {
   title?: string;
   artist?: string;
   album?: string;
+  albumArtist?: string;
   year?: string;
   genre?: string;
   track?: string;

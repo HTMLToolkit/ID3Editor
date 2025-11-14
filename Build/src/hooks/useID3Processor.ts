@@ -11,7 +11,8 @@ export function useID3Processor() {
   const processFile = async (
     file: File,
     tags: ID3Tags,
-    syltFrame: SYLTFrame
+    syltFrame: SYLTFrame,
+    albumArtUrl: string | null
   ): Promise<ProcessResult> => {
     setIsProcessing(true);
 
@@ -31,6 +32,42 @@ export function useID3Processor() {
       }
       if (tags.album) {
         (writer as any).setFrame('TALB', tags.album);
+      }
+      if (tags.albumArtist) {
+        (writer as any).setFrame('TPE2', tags.albumArtist);
+      }
+      if (tags.genre) {
+        (writer as any).setFrame('TCON', tags.genre);
+      }
+      if (tags.year) {
+        (writer as any).setFrame('TDRC', tags.year);
+      }
+      if (tags.track) {
+        (writer as any).setFrame('TRCK', tags.track);
+      }
+      if (tags.comment) {
+        (writer as any).setFrame('COMM', {
+          description: '',
+          text: tags.comment
+        });
+      }
+
+      // Set Album Art
+      if (albumArtUrl) {
+        try {
+          const response = await fetch(albumArtUrl);
+          const blob = await response.blob();
+          const imageBuffer = await blob.arrayBuffer();
+          
+          (writer as any).setFrame('APIC', {
+            type: 3,
+            data: new Uint8Array(imageBuffer),
+            description: '',
+            pictureType: 3
+          });
+        } catch (err) {
+          console.warn('Failed to set album art:', err);
+        }
       }
 
       // Set SYLT frame

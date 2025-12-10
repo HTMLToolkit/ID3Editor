@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { Music, Bug } from "lucide-react";
 import { FileUploadSection } from "./Upload";
 import { BasicTagsSection } from "./BasicTags";
@@ -9,25 +9,28 @@ import { AlertMessage } from "./Alert";
 import { ThemeToggle } from "./ThemeToggle";
 import { useID3Processor } from "../hooks/useID3Processor";
 import { useLRCParser } from "../hooks/useLRCParser";
+import { useID3Loader, DEFAULT_SYLT_FRAME } from "../hooks/useID3Loader";
 
 export default function App() {
   const [file, setFile] = useState<File | null>(null);
   const [tags, setTags] = useState<ID3Tags>({});
   const [albumArtUrl, setAlbumArtUrl] = useState<string | null>(null);
-  const [syltFrame, setSyltFrame] = useState<SYLTFrame>({
-    type: 1,
-    text: [],
-    timestampFormat: 2,
-    language: "eng",
-    description: "Lyrics",
-  });
+  const [syltFrame, setSyltFrame] = useState<SYLTFrame>(() => ({ ...DEFAULT_SYLT_FRAME }));
   const [lrcText, setLrcText] = useState<string>("");
   const [showEruda, setShowEruda] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [metadataSummary, setMetadataSummary] = useState("");
 
   const { isProcessing, processFile } = useID3Processor();
   const { parseLRCFormat } = useLRCParser();
+  const { isLoading: isReadingMetadata, loadMetadata } = useID3Loader();
+  const activeFileSignature = useRef("");
+
+  const buildFileSignature = useCallback(
+    (target: File) => `${target.name}:${target.lastModified}:${target.size}`,
+    []
+  );
 
   useEffect(() => {
     if (typeof window !== "undefined" && showEruda) {
@@ -38,15 +41,89 @@ export default function App() {
     }
   }, [showEruda]);
 
-  const handleFileUpload = useCallback((uploadedFile: File | null) => {
-    if (uploadedFile && uploadedFile.type === "audio/mpeg") {
+  const handleFileUpload = useCallback(
+    async (uploadedFile: File | null) => {
+      if (!uploadedFile) {
+        activeFileSignature.current = "";
+        setFile(null);
+        setTags({});
+        setAlbumArtUrl(null);
+        setSyltFrame({ ...DEFAULT_SYLT_FRAME });
+        setLrcText("");
+        setMetadataSummary("");
+        setSuccess(null);
+        setError(null);
+        return;
+      }
+
+      const acceptsMp3 =
+        uploadedFile.type === "audio/mpeg" ||
+        uploadedFile.type === "audio/mp3" ||
+        uploadedFile.name.toLowerCase().endsWith(".mp3");
+
+      if (!acceptsMp3) {
+        setError("Please upload a valid MP3 file");
+        setSuccess(null);
+        return;
+      }
+
+      const signature = buildFileSignature(uploadedFile);
+      activeFileSignature.current = signature;
+
       setFile(uploadedFile);
       setError(null);
-      setSuccess("File loaded successfully! Ready to edit tags.");
-    } else {
-      setError("Please upload a valid MP3 file");
-    }
-  }, []);
+      setSuccess("File loaded. Reading embedded tags...");
+      setMetadataSummary("Scanning embedded metadata...");
+      setTags({});
+      setAlbumArtUrl(null);
+      setSyltFrame({ ...DEFAULT_SYLT_FRAME });
+      setLrcText("");
+
+      try {
+        const { tags: parsedTags, albumArtUrl: parsedAlbumArt, syltFrame: parsedSylt } = await loadMetadata(
+          uploadedFile
+        );
+
+        if (activeFileSignature.current !== signature) {
+          return;
+        }
+
+        setTags(parsedTags);
+        setAlbumArtUrl(parsedAlbumArt);
+        if (parsedSylt) {
+          setSyltFrame({ ...DEFAULT_SYLT_FRAME, ...parsedSylt });
+        }
+
+        const importedFieldCount = Object.values(parsedTags).filter(
+          (value) => typeof value === "string" && value.trim().length > 0
+        ).length;
+        const importedLyrics = parsedSylt?.text.length ?? 0;
+        const hasImportedData =
+          importedFieldCount > 0 || Boolean(parsedAlbumArt) || (parsedSylt && importedLyrics > 0);
+
+        setMetadataSummary(
+          importedFieldCount > 0
+            ? `Imported ${importedFieldCount} embedded tag${importedFieldCount === 1 ? "" : "s"}.`
+            : "No embedded tags found."
+        );
+
+        setSuccess(
+          hasImportedData
+            ? "Existing metadata imported. Continue editing below."
+            : "File loaded. Add or update tags below."
+        );
+      } catch (loaderErr) {
+        if (activeFileSignature.current !== signature) {
+          return;
+        }
+        console.error("Failed to parse metadata", loaderErr);
+        setMetadataSummary("");
+        setError("Loaded file, but could not read embedded metadata automatically.");
+        setSuccess(null);
+      }
+    },
+    [loadMetadata, buildFileSignature]
+  );
 
   const handleTagChange = (field: keyof ID3Tags, value: string) => {
     setTags((prev) => ({ ...prev, [field]: value }));
@@ -185,7 +262,12 @@ export default function App() {
           {error && <AlertMessage type="error" message={error} />}
           {success && <AlertMessage type="success" message={success} />}
 
-          <FileUploadSection file={file} onFileUpload={handleFileUpload} />
+          <FileUploadSection
+            file={file}
+            onFileUpload={handleFileUpload}
+            isParsingMetadata={isReadingMetadata}
+            metadataSummary={metadataSummary}
+          />
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             {sessionStats.map(({ label, value, helper }) => (

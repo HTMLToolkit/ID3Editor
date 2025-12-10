@@ -112,16 +112,24 @@ export function useID3Processor() {
         });
       }
       if (tags.website) {
-        try {
-          (writer as any).setFrame("WXXX", {
-            description: "Website",
-            value: tags.website,
-          });
-        } catch {
-          (writer as any).setFrame("TXXX", {
-            description: "Website",
-            value: tags.website,
-          });
+        const websiteValue = tags.website;
+        const trySetUrlFrame = (frame: string, value: unknown): boolean => {
+          try {
+            (writer as any).setFrame(frame, value);
+            return true;
+          } catch {
+            return false;
+          }
+        };
+
+        // Prefer official URL frames so downstream parsers surface the link automatically.
+        const wroteUrl =
+          trySetUrlFrame("WXXX", { description: "Website", value: websiteValue }) ||
+          trySetUrlFrame("WOAR", websiteValue) ||
+          trySetUrlFrame("WOAS", websiteValue);
+
+        if (!wroteUrl) {
+          trySetUrlFrame("TXXX", { description: "Website", value: websiteValue });
         }
       }
 

@@ -6,7 +6,22 @@ interface ID3Tags {
   year?: string;
   genre?: string;
   track?: string;
+  trackTotal?: string;
+  disc?: string;
+  discTotal?: string;
+  composer?: string;
+  lyricist?: string;
+  publisher?: string;
+  copyright?: string;
+  bpm?: string;
+  initialKey?: string;
+  mood?: string;
+  isrc?: string;
+  grouping?: string;
+  encoder?: string;
   comment?: string;
+  unsyncedLyrics?: string;
+  website?: string;
 }
 
 interface SYLTFrame {

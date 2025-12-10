@@ -1,37 +1,37 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-import { VitePWA } from 'vite-plugin-pwa';
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+import { VitePWA } from "vite-plugin-pwa";
 
 export default defineConfig({
   base: "./",
   plugins: [
     VitePWA({
-      registerType: 'autoUpdate',
-      includeAssets: ['robots.txt'],
+      registerType: "autoUpdate",
+      includeAssets: ["robots.txt"],
       manifest: {
-        name: 'ID3Editor',
-        short_name: 'ID3Editor',
-        start_url: './',
-        display: 'standalone',
-        theme_color: '#00bfff',
-        background_color: '#00bfff',
+        name: "ID3Editor",
+        short_name: "ID3Editor",
+        start_url: "./",
+        display: "standalone",
+        theme_color: "#00bfff",
+        background_color: "#00bfff",
       },
       pwaAssets: {
-        image: 'public/source-image.png',
-        preset: 'minimal-2023',
+        image: "public/source-image.png",
+        preset: "minimal-2023",
         includeHtmlHeadLinks: true,
       },
       workbox: {
         runtimeCaching: [
           {
             urlPattern: /.*\.(js|css|html)$/,
-            handler: 'NetworkFirst',
-            options: { cacheName: 'app-shell' },
+            handler: "NetworkFirst",
+            options: { cacheName: "app-shell" },
           },
           {
             urlPattern: /.*\.(png|ico|json)$/,
-            handler: 'CacheFirst',
-            options: { cacheName: 'assets' },
+            handler: "CacheFirst",
+            options: { cacheName: "assets" },
           },
         ],
       },
@@ -39,7 +39,7 @@ export default defineConfig({
   ],
   build: {
     sourcemap: true,
-    outDir: './dist',
+    outDir: "./dist",
     emptyOutDir: true,
     chunkSizeWarningLimit: 1000,
   },

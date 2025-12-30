@@ -16,8 +16,8 @@ export function AlbumArtSection({
         alert("Please select an image file");
         return;
       }
-      if (file.size > 5 * 1024 * 1024) {
-        alert("Image size must be less than 5MB");
+      if (file.size > 10 * 1024 * 1024) {
+        alert("Image size must be less than 10MB");
         return;
       }
       const reader = new FileReader();

@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:single": "cross-env SINGLE_FILE=true npm run build",
     "preview": "vite preview",
     "make-pretty": "prettier --write src/"
   },
@@ -31,6 +32,7 @@
     "@typescript-eslint/parser": "^8.46.2",
     "@vitejs/plugin-react": "^5.1.2",
     "autoprefixer": "^10.4.21",
+    "cross-env": "^10.1.0",
     "eslint": "^9",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.16",
@@ -38,6 +40,7 @@
     "tailwindcss": "^4",
     "typescript": "^5",
     "vite": "^7.2.7",
-    "vite-plugin-pwa": "^1.0.3"
+    "vite-plugin-pwa": "^1.0.3",
+    "vite-plugin-singlefile": "^2.3.0"
   }
 }

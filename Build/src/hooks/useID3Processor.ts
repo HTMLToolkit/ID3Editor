@@ -11,8 +11,8 @@ export function useID3Processor() {
   const processFile = async (
     file: File,
     tags: ID3Tags,
-    syltFrame: SYLTFrame,
-    albumArtUrl: string | null,
+    syltFrames: SYLTFrame[],
+    albumArtUrl: string | null
   ): Promise<ProcessResult> => {
     setIsProcessing(true);
 
@@ -104,13 +104,28 @@ export function useID3Processor() {
           text: tags.comment,
         });
       }
-      if (tags.unsyncedLyrics) {
-        (writer as any).setFrame("USLT", {
-          description: tags.title || "Lyrics",
-          language: syltFrame.language || "eng",
-          lyrics: tags.unsyncedLyrics,
-        });
+      if (tags.usltFrames && Array.isArray(tags.usltFrames)) {
+        for (const uslt of tags.usltFrames) {
+          (writer as any).setFrame("USLT", {
+            description: uslt.description || "",
+            language: uslt.language || "eng",
+            lyrics: uslt.lyrics || "",
+          });
+        }
       }
+      if (syltFrames && Array.isArray(syltFrames)) {
+        for (const sylt of syltFrames) {
+          const formattedText = sylt.text.map(([text, timestamp]) => [
+            String(text || ""),
+            Math.floor(Number(timestamp || 0)),
+          ]);
+          (writer as any).setFrame("SYLT", {
+            ...sylt,
+            text: formattedText,
+          });
+        }
+      }
+
       if (tags.website) {
         const websiteValue = tags.website;
         const trySetUrlFrame = (frame: string, value: unknown): boolean => {
@@ -124,12 +139,18 @@ export function useID3Processor() {
 
         // Prefer official URL frames so downstream parsers surface the link automatically.
         const wroteUrl =
-          trySetUrlFrame("WXXX", { description: "Website", value: websiteValue }) ||
+          trySetUrlFrame("WXXX", {
+            description: "Website",
+            value: websiteValue,
+          }) ||
           trySetUrlFrame("WOAR", websiteValue) ||
           trySetUrlFrame("WOAS", websiteValue);
 
         if (!wroteUrl) {
-          trySetUrlFrame("TXXX", { description: "Website", value: websiteValue });
+          trySetUrlFrame("TXXX", {
+            description: "Website",
+            value: websiteValue,
+          });
         }
       }
 
@@ -161,21 +182,6 @@ export function useID3Processor() {
         } catch (err) {
           console.warn("Failed to set album art:", err);
         }
-      }
-
-      if (syltFrame.text.length > 0) {
-        const formattedText = syltFrame.text.map(([text, timestamp]) => [
-          String(text || ""),
-          Math.floor(Number(timestamp || 0)),
-        ]);
-
-        (writer as any).setFrame("SYLT", {
-          type: 1,
-          text: formattedText,
-          timestampFormat: 2,
-          language: syltFrame.language || "eng",
-          description: syltFrame.description || "Synced Lyrics",
-        });
       }
 
       writer.addTag();

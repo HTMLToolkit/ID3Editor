@@ -23,5 +23,10 @@ export function useLRCParser() {
     return entries;
   };
 
-  return { parseLRCFormat };
+  const parseLRCFile = async (file: File): Promise<[string, number][]> => {
+    const text = await file.text();
+    return parseLRCFormat(text);
+  };
+
+  return { parseLRCFormat, parseLRCFile };
 }

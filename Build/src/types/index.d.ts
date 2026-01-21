@@ -21,7 +21,15 @@ interface ID3Tags {
   encoder?: string;
   comment?: string;
   unsyncedLyrics?: string;
+  syltFrames?: SYLTFrame[];
+  usltFrames?: USLTFrame[];
   website?: string;
+}
+
+interface USLTFrame {
+  language: string;
+  description: string;
+  lyrics: string;
 }
 
 interface SYLTFrame {
@@ -30,4 +38,9 @@ interface SYLTFrame {
   timestampFormat: number;
   language: string;
   description: string;
+}
+
+interface SyncedLyricsGroup {
+  syltFrame: SYLTFrame;
+  usltFrame: USLTFrame;
 }

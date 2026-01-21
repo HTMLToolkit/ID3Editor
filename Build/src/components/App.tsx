@@ -8,22 +8,20 @@ import { ProcessButton } from "./Process";
 import { AlertMessage } from "./Alert";
 import { ThemeToggle } from "./ThemeToggle";
 import { useID3Processor } from "../hooks/useID3Processor";
-import { useLRCParser } from "../hooks/useLRCParser";
-import { useID3Loader, DEFAULT_SYLT_FRAME } from "../hooks/useID3Loader";
+import { useID3Loader, DEFAULT_SYLT_FRAME, DEFAULT_USLT_FRAME } from "../hooks/useID3Loader";
 
 export default function App() {
   const [file, setFile] = useState<File | null>(null);
   const [tags, setTags] = useState<ID3Tags>({});
   const [albumArtUrl, setAlbumArtUrl] = useState<string | null>(null);
-  const [syltFrame, setSyltFrame] = useState<SYLTFrame>(() => ({ ...DEFAULT_SYLT_FRAME }));
-  const [lrcText, setLrcText] = useState<string>("");
+  const [syltFrames, setSyltFrames] = useState<SYLTFrame[]>([]);
+  const [usltFrames, setUsltFrames] = useState<USLTFrame[]>([]);
   const [showEruda, setShowEruda] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [metadataSummary, setMetadataSummary] = useState("");
 
   const { isProcessing, processFile } = useID3Processor();
-  const { parseLRCFormat } = useLRCParser();
   const { isLoading: isReadingMetadata, loadMetadata } = useID3Loader();
   const activeFileSignature = useRef("");
 
@@ -48,8 +46,8 @@ export default function App() {
         setFile(null);
         setTags({});
         setAlbumArtUrl(null);
-        setSyltFrame({ ...DEFAULT_SYLT_FRAME });
-        setLrcText("");
+        setSyltFrames([]);
+        setUsltFrames([]);
         setMetadataSummary("");
         setSuccess(null);
         setError(null);
@@ -76,13 +74,16 @@ export default function App() {
       setMetadataSummary("Scanning embedded metadata...");
       setTags({});
       setAlbumArtUrl(null);
-      setSyltFrame({ ...DEFAULT_SYLT_FRAME });
-      setLrcText("");
+      setSyltFrames([]);
+      setUsltFrames([]);
 
       try {
-        const { tags: parsedTags, albumArtUrl: parsedAlbumArt, syltFrame: parsedSylt } = await loadMetadata(
-          uploadedFile
-        );
+        const {
+          tags: parsedTags,
+          albumArtUrl: parsedAlbumArt,
+          syltFrames: parsedSyltFrames,
+          usltFrames: parsedUsltFrames,
+        } = await loadMetadata(uploadedFile);
 
         if (activeFileSignature.current !== signature) {
           return;
@@ -90,16 +91,17 @@ export default function App() {
 
         setTags(parsedTags);
         setAlbumArtUrl(parsedAlbumArt);
-        if (parsedSylt) {
-          setSyltFrame({ ...DEFAULT_SYLT_FRAME, ...parsedSylt });
-        }
+        setSyltFrames(parsedSyltFrames?.length ? parsedSyltFrames : [{ ...DEFAULT_SYLT_FRAME }]);
+        setUsltFrames(parsedUsltFrames?.length ? parsedUsltFrames : [{ ...DEFAULT_USLT_FRAME }]);
 
         const importedFieldCount = Object.values(parsedTags).filter(
           (value) => typeof value === "string" && value.trim().length > 0
         ).length;
-        const importedLyrics = parsedSylt?.text.length ?? 0;
+        const importedLyricsLines = (parsedSyltFrames?.reduce((acc, f) => acc + f.text.length, 0)) ?? 0;
         const hasImportedData =
-          importedFieldCount > 0 || Boolean(parsedAlbumArt) || (parsedSylt && importedLyrics > 0);
+          importedFieldCount > 0 ||
+          Boolean(parsedAlbumArt) ||
+          (parsedSyltFrames && importedLyricsLines > 0);
 
         setMetadataSummary(
           importedFieldCount > 0
@@ -129,47 +131,25 @@ export default function App() {
     setTags((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handleLRCImport = () => {
-    if (lrcText.trim()) {
-      const entries = parseLRCFormat(lrcText);
-      setSyltFrame((prev) => ({ ...prev, text: entries }));
-      if (!tags.unsyncedLyrics || tags.unsyncedLyrics.trim().length === 0) {
-        const derivedLyrics = entries
-          .map(([line]) => line?.trim())
-          .filter(Boolean)
-          .join("\n");
-        if (derivedLyrics) {
-          setTags((prev) => ({ ...prev, unsyncedLyrics: derivedLyrics }));
-        }
-      }
-      setLrcText("");
-      setSuccess("LRC format lyrics imported successfully!");
-    }
-  };
-
   const handleProcess = async () => {
     if (!file) return;
-
     setError(null);
     setSuccess(null);
 
-    const result = await processFile(file, tags, syltFrame, albumArtUrl);
+    // Make sure tags.usltFrames is in sync for processor
+    setTags((prev) => ({
+      ...prev,
+      usltFrames: usltFrames,
+      syltFrames: syltFrames,
+    }));
+
+    const result = await processFile(file, { ...tags, usltFrames, syltFrames }, syltFrames, albumArtUrl);
+
     if (result.success) {
       setSuccess(result.message);
     } else {
       setError(result.message);
     }
-  };
-
-  const handleSYLTChange = (updatedText: [string, number][]) => {
-    setSyltFrame((prev) => ({ ...prev, text: updatedText }));
-  };
-
-  const handleSYLTMetadataChange = (
-    field: "language" | "description",
-    value: string,
-  ) => {
-    setSyltFrame((prev) => ({ ...prev, [field]: value }));
   };
 
   const populatedFields = Object.values(tags).filter(
@@ -183,8 +163,8 @@ export default function App() {
     },
     {
       label: "Synced lines",
-      value: syltFrame.text.length.toString(),
-      helper: "timestamped lyric rows",
+      value: syltFrames.reduce((sum, f) => sum + (f.text.length || 0), 0).toString(),
+      helper: "timestamped lyric rows (all frames)",
     },
     {
       label: "Artwork",
@@ -304,16 +284,10 @@ export default function App() {
 
         {/* Synced Lyrics */}
         <SyncedLyricsSection
-          syltFrame={syltFrame}
-          onTextChange={handleSYLTChange}
-          onMetadataChange={handleSYLTMetadataChange}
-          lrcText={lrcText}
-          onLrcTextChange={setLrcText}
-          onImport={handleLRCImport}
-          unsyncedLyrics={tags.unsyncedLyrics || ""}
-          onUnsyncedLyricsChange={(value) =>
-            handleTagChange("unsyncedLyrics", value)
-          }
+          syltFrames={syltFrames}
+          onSyltFramesChange={setSyltFrames}
+          usltFrames={usltFrames}
+          onUsltFramesChange={setUsltFrames}
         />
 
         {/* Process Button */}

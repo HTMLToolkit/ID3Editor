@@ -8,7 +8,11 @@ import { ProcessButton } from "./Process";
 import { AlertMessage } from "./Alert";
 import { ThemeToggle } from "./ThemeToggle";
 import { useID3Processor } from "../hooks/useID3Processor";
-import { useID3Loader, DEFAULT_SYLT_FRAME, DEFAULT_USLT_FRAME } from "../hooks/useID3Loader";
+import {
+  useID3Loader,
+  DEFAULT_SYLT_FRAME,
+  DEFAULT_USLT_FRAME,
+} from "../hooks/useID3Loader";
 
 export default function App() {
   const [file, setFile] = useState<File | null>(null);
@@ -91,13 +95,22 @@ export default function App() {
 
         setTags(parsedTags);
         setAlbumArtUrl(parsedAlbumArt);
-        setSyltFrames(parsedSyltFrames?.length ? parsedSyltFrames : [{ ...DEFAULT_SYLT_FRAME }]);
-        setUsltFrames(parsedUsltFrames?.length ? parsedUsltFrames : [{ ...DEFAULT_USLT_FRAME }]);
+        setSyltFrames(
+          parsedSyltFrames?.length
+            ? parsedSyltFrames
+            : [{ ...DEFAULT_SYLT_FRAME }]
+        );
+        setUsltFrames(
+          parsedUsltFrames?.length
+            ? parsedUsltFrames
+            : [{ ...DEFAULT_USLT_FRAME }]
+        );
 
         const importedFieldCount = Object.values(parsedTags).filter(
           (value) => typeof value === "string" && value.trim().length > 0
         ).length;
-        const importedLyricsLines = (parsedSyltFrames?.reduce((acc, f) => acc + f.text.length, 0)) ?? 0;
+        const importedLyricsLines =
+          parsedSyltFrames?.reduce((acc, f) => acc + f.text.length, 0) ?? 0;
         const hasImportedData =
           importedFieldCount > 0 ||
           Boolean(parsedAlbumArt) ||
@@ -120,7 +133,9 @@ export default function App() {
         }
         console.error("Failed to parse metadata", loaderErr);
         setMetadataSummary("");
-        setError("Loaded file, but could not read embedded metadata automatically.");
+        setError(
+          "Loaded file, but could not read embedded metadata automatically."
+        );
         setSuccess(null);
       }
     },
@@ -143,7 +158,12 @@ export default function App() {
       syltFrames: syltFrames,
     }));
 
-    const result = await processFile(file, { ...tags, usltFrames, syltFrames }, syltFrames, albumArtUrl);
+    const result = await processFile(
+      file,
+      { ...tags, usltFrames, syltFrames },
+      syltFrames,
+      albumArtUrl
+    );
 
     if (result.success) {
       setSuccess(result.message);
@@ -152,9 +172,13 @@ export default function App() {
     }
   };
 
-  const populatedFields = Object.values(tags).filter(
-    (value) => typeof value === "string" && value.trim().length > 0,
-  ).length;
+  const populatedFields = Object.entries(tags).filter(([, value]) => {
+    if (typeof value === "string") {
+      return value.trim().length > 0;
+    }
+    return false;
+  }).length;
+
   const sessionStats = [
     {
       label: "Tag fields set",
@@ -163,7 +187,9 @@ export default function App() {
     },
     {
       label: "Synced lines",
-      value: syltFrames.reduce((sum, f) => sum + (f.text.length || 0), 0).toString(),
+      value: syltFrames
+        .reduce((sum, f) => sum + (f.text.length || 0), 0)
+        .toString(),
       helper: "timestamped lyric rows (all frames)",
     },
     {

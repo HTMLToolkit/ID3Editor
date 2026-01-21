@@ -83,9 +83,12 @@ const INPUT_GROUPS: Array<{
 ];
 
 export function BasicTagsSection({ tags, onTagChange }: BasicTagsSectionProps) {
-  const populatedFields = Object.entries(tags).filter(([, value]) =>
-    Boolean(value && value.trim()),
-  ).length;
+  const populatedFields = Object.entries(tags).filter(([, value]) => {
+    if (typeof value === "string") {
+      return value.trim().length > 0;
+    }
+    return false;
+  }).length;
   const totalFields =
     INPUT_GROUPS.reduce((count, group) => count + group.fields.length, 0) + 1; // + comment
 
@@ -95,27 +98,43 @@ export function BasicTagsSection({ tags, onTagChange }: BasicTagsSectionProps) {
     placeholder,
     type,
     colSpan,
-  }: TagField) => (
-    <div
-      key={key}
-      className={`space-y-2 ${colSpan === "full" ? "md:col-span-2" : ""}`}
-    >
-      <label
-        htmlFor={key as string}
-        className="text-sm font-semibold tracking-wide text-foreground/80"
+  }: TagField) => {
+    let fieldValue: string | number | undefined = "";
+    const rawValue = tags[key];
+    if (typeof rawValue === "string" || typeof rawValue === "number") {
+      fieldValue = rawValue;
+    } else if (
+      rawValue != null &&
+      typeof rawValue.toString === "function" &&
+      typeof rawValue !== "object"
+    ) {
+      fieldValue = String(rawValue);
+    } else {
+      fieldValue = "";
+    }
+
+    return (
+      <div
+        key={key}
+        className={`space-y-2 ${colSpan === "full" ? "md:col-span-2" : ""}`}
       >
-        {label}
-      </label>
-      <input
-        id={key as string}
-        value={tags[key] || ""}
-        onChange={(e) => onTagChange(key, e.target.value)}
-        placeholder={placeholder}
-        type={type ?? "text"}
-        className="w-full border border-input/80 bg-background/50 focus:bg-background rounded-md px-3 py-2 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
-      />
-    </div>
-  );
+        <label
+          htmlFor={key as string}
+          className="text-sm font-semibold tracking-wide text-foreground/80"
+        >
+          {label}
+        </label>
+        <input
+          id={key as string}
+          value={fieldValue}
+          onChange={(e) => onTagChange(key, e.target.value)}
+          placeholder={placeholder}
+          type={type ?? "text"}
+          className="w-full border border-input/80 bg-background/50 focus:bg-background rounded-md px-3 py-2 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
+        />
+      </div>
+    );
+  };
 
   return (
     <section className="glass-panel p-6 mb-6">
@@ -157,7 +176,7 @@ export function BasicTagsSection({ tags, onTagChange }: BasicTagsSectionProps) {
         <textarea
           id="comment"
           rows={4}
-          value={tags.comment || ""}
+          value={typeof tags.comment === "string" ? tags.comment : ""}
           onChange={(e) => onTagChange("comment", e.target.value)}
           placeholder="Liner notes, sample credits, or short story behind the track..."
           className="w-full border border-input/80 bg-background/50 focus:bg-background rounded-md px-3 py-2 text-sm font-mono transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"

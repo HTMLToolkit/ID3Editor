@@ -36,130 +36,256 @@ export function SyncedLyricsSection({
 
   const { parseLRCFormat, parseLRCFile } = useLRCParser();
 
-  const currentSylt = syltFrames[activeIndex] || { ...DEFAULT_SYLT_FRAME };
-  const currentUslt = usltFrames[activeIndex] || { ...DEFAULT_USLT_FRAME };
+  // Defensive group index handling
+  const safeActiveIndex =
+    syltFrames.length > 0 && activeIndex >= 0 && activeIndex < syltFrames.length
+      ? activeIndex
+      : 0;
 
-  const handleAddGroup = () => {
-    onSyltFramesChange(prev => [...prev, { ...DEFAULT_SYLT_FRAME }]);
-    onUsltFramesChange(prev => [...prev, { ...DEFAULT_USLT_FRAME }]);
-    setActiveIndex(syltFrames.length); // This is still fine; syltFrames.length is previous
+  // Defensive frame fallback
+  const currentSylt = syltFrames[safeActiveIndex] ?? { ...DEFAULT_SYLT_FRAME };
+  const currentUslt = usltFrames[safeActiveIndex] ?? { ...DEFAULT_USLT_FRAME };
+
+  // Defensive for autoUSLT
+  const autoUSLT = Array.isArray(currentSylt.text)
+    ? currentSylt.text
+        .filter(
+          (entry): entry is [string, number] =>
+            Array.isArray(entry) &&
+            entry.length === 2 &&
+            typeof entry[0] === "string" &&
+            typeof entry[1] === "number"
+        )
+        .map(([t]) => t)
+        .join("\n")
+    : "";
+
+  function renderGroupTabs() {
+    return (
+      <div className="flex flex-wrap gap-2 mb-3">
+        {syltFrames.map((g, i) => (
+          <button
+            key={i}
+            type="button"
+            onClick={() => handleSwitchGroup(i)}
+            className={`btn px-3 py-1 text-xs ${safeActiveIndex === i ? "bg-primary/20 border-primary" : "bg-background border-input/50"} border rounded-full`}
+            data-variant={safeActiveIndex === i ? "solid" : "soft"}
+          >
+            {g.language || "eng"}
+            {syltFrames.length > 1 && (
+              <span
+                className="ml-1 text-danger cursor-pointer"
+                title="Delete group"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDeleteGroup(i);
+                }}
+              >
+                <Trash2 className="inline h-3 w-3" />
+              </span>
+            )}
+          </button>
+        ))}
+        <button
+          type="button"
+          className="btn"
+          data-variant="soft"
+          data-tone="primary"
+          data-size="xs"
+          onClick={handleAddGroup}
+        >
+          <Plus className="h-4 w-4 icon-accent" /> Add group
+        </button>
+      </div>
+    );
+  }
+
+  // Add a new lyric group (both SYLT/USLT)
+  function handleAddGroup() {
+    onSyltFramesChange((prev) => [...prev, { ...DEFAULT_SYLT_FRAME }]);
+    onUsltFramesChange((prev) => [...prev, { ...DEFAULT_USLT_FRAME }]);
+    setActiveIndex(syltFrames.length); // next index
     setLrcText("");
-  };
-  
-  const handleDeleteGroup = (idx: number) => {
-    if (syltFrames.length < 2) return;
-    onSyltFramesChange(prev => prev.filter((_, i) => i !== idx));
-    onUsltFramesChange(prev => prev.filter((_, i) => i !== idx));
+  }
+
+  // Delete group, always keep at least one
+  function handleDeleteGroup(idx: number) {
+    if (syltFrames.length <= 1) return;
+    const newSylt = syltFrames.filter((_, i) => i !== idx);
+    const newUslt = usltFrames.filter((_, i) => i !== idx);
+    onSyltFramesChange(newSylt);
+    onUsltFramesChange(newUslt);
     setActiveIndex(idx > 0 ? idx - 1 : 0);
     setLrcText("");
-  };
+  }
 
-  // Switch active group
-  const handleSwitchGroup = (idx: number) => {
-    setActiveIndex(idx);
+  function handleSwitchGroup(idx: number) {
+    setActiveIndex(
+      syltFrames.length > 0
+        ? Math.max(0, Math.min(idx, syltFrames.length - 1))
+        : 0
+    );
     setLrcText("");
-  };
+  }
 
-  const handleSyltField = (field: keyof SYLTFrame, value: any) => {
-    onSyltFramesChange(prev => {
-      const next = [...prev];
-      next[activeIndex] = { ...next[activeIndex], [field]: value };
-      return next;
+  function handleSyltField(field: keyof SYLTFrame, value: any) {
+    onSyltFramesChange((prev) => {
+      if (prev.length === 0) return [{ ...DEFAULT_SYLT_FRAME, [field]: value }];
+      return prev.map((frame, i) =>
+        i === safeActiveIndex ? { ...frame, [field]: value } : frame
+      );
     });
-  };
-  
-  const handleUsltField = (field: keyof USLTFrame, value: any) => {
-    onUsltFramesChange(prev => {
-      const next = [...prev];
-      next[activeIndex] = { ...next[activeIndex], [field]: value };
-      return next;
-    });
-  };
-  
-  const handleAddEntry = () => {
-    onSyltFramesChange(prev => {
-      const next = [...prev];
-      next[activeIndex].text.push(["", 0]);
-      return next;
-    });
-  };
-  
-  const handleUpdateEntry = (idx: number, text: string, time: number) => {
-    onSyltFramesChange(prev => {
-      const next = [...prev];
-      next[activeIndex].text[idx] = [text, time];
-      return next;
-    });
-  };
-  
-  const handleDeleteEntry = (idx: number) => {
-    onSyltFramesChange(prev => {
-      const next = [...prev];
-      next[activeIndex].text.splice(idx, 1);
-      return next;
-    });
-  };
+  }
 
-  // LRC text import for current group
-  const handleLrcImport = () => {
+  function handleUsltField(field: keyof USLTFrame, value: any) {
+    onUsltFramesChange((prev) => {
+      if (prev.length === 0) return [{ ...DEFAULT_USLT_FRAME, [field]: value }];
+      return prev.map((frame, i) =>
+        i === safeActiveIndex ? { ...frame, [field]: value } : frame
+      );
+    });
+  }
+
+  function handleAddEntry() {
+    onSyltFramesChange((prev) => {
+      return prev.map((frame, i) =>
+        i === safeActiveIndex
+          ? {
+              ...frame,
+              text: [...(frame.text ?? []), ["", 0] as [string, number]],
+            }
+          : frame
+      );
+    });
+  }
+
+  function handleUpdateEntry(entryIdx: number, text: string, time: number) {
+    onSyltFramesChange((prev) => {
+      return prev.map((frame, i) => {
+        if (i !== safeActiveIndex) return frame;
+        const nextText = Array.isArray(frame.text) ? [...frame.text] : [];
+        nextText[entryIdx] = [text, time];
+        // Filter to ensure all entries are [string, number]
+        const cleanText = nextText.filter(
+          (entry): entry is [string, number] =>
+            Array.isArray(entry) &&
+            entry.length === 2 &&
+            typeof entry[0] === "string" &&
+            typeof entry[1] === "number"
+        );
+        return { ...frame, text: cleanText };
+      });
+    });
+  }
+
+  function handleDeleteEntry(entryIdx: number) {
+    onSyltFramesChange((prev) => {
+      return prev.map((frame, i) => {
+        if (i !== safeActiveIndex) return frame;
+        const nextText = Array.isArray(frame.text) ? [...frame.text] : [];
+        nextText.splice(entryIdx, 1);
+        const cleanText = nextText.filter(
+          (entry): entry is [string, number] =>
+            Array.isArray(entry) &&
+            entry.length === 2 &&
+            typeof entry[0] === "string" &&
+            typeof entry[1] === "number"
+        );
+        return { ...frame, text: cleanText };
+      });
+    });
+  }
+
+  function handleLrcImport() {
     const parsed = parseLRCFormat(lrcText);
-    if (!parsed.length) return;
-    handleSyltField("text", parsed.map(([text, timestamp]) => [text, timestamp]));
+    // Filter for valid tuples
+    const valid = parsed.filter(
+      (entry): entry is [string, number] =>
+        Array.isArray(entry) &&
+        entry.length === 2 &&
+        typeof entry[0] === "string" &&
+        typeof entry[1] === "number"
+    );
+    if (!valid.length) return;
+    handleSyltField("text", valid);
     setShowLrcImport(false);
     setLrcText("");
-  };
+  }
 
-  // LRC file upload
-  const handleLrcFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  async function handleLrcFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
     const parsed = await parseLRCFile(file);
-    setLrcText(parsed.map(([text, time]) => `[${new Date(time).toISOString().slice(14, 23)}]${text}`).join("\n"));
+    // Defensive formatting (always tuples)
+    setLrcText(
+      parsed
+        .filter(
+          (entry): entry is [string, number] =>
+            Array.isArray(entry) &&
+            entry.length === 2 &&
+            typeof entry[0] === "string" &&
+            typeof entry[1] === "number"
+        )
+        .map(([text, time]) => `[${formatMs(time)}]${text}`)
+        .join("\n")
+    );
     setShowLrcImport(true);
     e.target.value = "";
-  };
+  }
 
-  // USLT: fallback from SYLT if blank
-  const autoUSLT = (currentSylt.text || []).map(([t]) => t).join("\n");
+  function formatMs(ms: number) {
+    const totalSeconds = Math.floor(ms / 1000);
+    const minutes = String(Math.floor(totalSeconds / 60)).padStart(2, "0");
+    const seconds = String(totalSeconds % 60).padStart(2, "0");
+    const centiseconds = String(Math.floor((ms % 1000) / 10)).padStart(2, "0");
+    return `${minutes}:${seconds}.${centiseconds}`;
+  }
 
-  // Tabs to switch groups
-  const renderGroupTabs = () => (
-    <div className="flex flex-wrap gap-2 mb-3">
-      {syltFrames.map((g, i) => (
+  // Lyric entry subcomponent
+  function LyricEntry({
+    index,
+    text,
+    timestamp,
+    onUpdate,
+    onDelete,
+  }: {
+    index: number;
+    text: string;
+    timestamp: number;
+    onUpdate: (index: number, text: string, timestamp: number) => void;
+    onDelete: (index: number) => void;
+  }) {
+    return (
+      <div className="flex flex-col gap-2 rounded-lg border border-input/60 bg-background/60 p-3 sm:flex-row sm:items-center sm:gap-3">
+        <input
+          value={text}
+          onChange={(e) => onUpdate(index, e.target.value, timestamp)}
+          placeholder="Lyrics text"
+          className="flex-1 border border-input/60 rounded-md px-3 py-2 text-sm"
+        />
+        <div className="flex items-center gap-2">
+          <Clock className="h-4 w-4 icon-accent" />
+          <input
+            type="number"
+            value={timestamp}
+            onChange={(e) => onUpdate(index, text, Number(e.target.value) || 0)}
+            placeholder="ms"
+            className="w-24 border border-input/60 rounded-md px-2 py-2 text-sm"
+          />
+        </div>
         <button
-          key={i}
+          onClick={() => onDelete(index)}
+          className="btn"
+          data-variant="soft"
+          data-tone="danger"
+          data-size="sm"
           type="button"
-          onClick={() => handleSwitchGroup(i)}
-          className={`btn px-3 py-1 text-xs ${activeIndex === i ? "bg-primary/20 border-primary" : "bg-background border-input/50"} border rounded-full`}
-          data-variant={activeIndex === i ? "solid" : "soft"}
         >
-          {g.language || "eng"}
-          {syltFrames.length > 1 && (
-            <span
-              className="ml-1 text-danger cursor-pointer"
-              title="Delete group"
-              onClick={e => {
-                e.stopPropagation();
-                handleDeleteGroup(i);
-              }}
-            >
-              <Trash2 className="inline h-3 w-3" />
-            </span>
-          )}
+          <Trash2 className="h-4 w-4" />
         </button>
-      ))}
-      <button
-        type="button"
-        className="btn"
-        data-variant="soft"
-        data-tone="primary"
-        data-size="xs"
-        onClick={handleAddGroup}
-      >
-        <Plus className="h-4 w-4 icon-accent" /> Add group
-      </button>
-    </div>
-  );
+      </div>
+    );
+  }
 
   return (
     <section className="glass-panel p-6 sm:p-8">
@@ -170,7 +296,8 @@ export function SyncedLyricsSection({
             <h2 className="text-xl font-semibold">Lyrics & Sync</h2>
           </div>
           <span className="rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
-            {currentSylt.text?.length || 0} entries
+            {Array.isArray(currentSylt.text) ? currentSylt.text.length : 0}{" "}
+            entries
           </span>
         </div>
         {renderGroupTabs()}
@@ -202,7 +329,7 @@ export function SyncedLyricsSection({
             data-variant="soft"
             data-tone="primary"
             data-size="sm"
-            onClick={() => setShowLrcImport(v => !v)}
+            onClick={() => setShowLrcImport((v) => !v)}
           >
             <Upload className="h-4 w-4 icon-accent" />
             Paste LRC text
@@ -215,7 +342,7 @@ export function SyncedLyricsSection({
             </label>
             <textarea
               value={lrcText}
-              onChange={e => setLrcText(e.target.value)}
+              onChange={(e) => setLrcText(e.target.value)}
               rows={4}
               placeholder="[00:01.40]First line\n[00:08.50]Next line"
               className="w-full border border-input/80 bg-background/50 focus:bg-background rounded-md px-3 py-2 text-sm font-mono"
@@ -241,7 +368,7 @@ export function SyncedLyricsSection({
             </label>
             <input
               value={currentSylt.language || ""}
-              onChange={e => handleSyltField("language", e.target.value)}
+              onChange={(e) => handleSyltField("language", e.target.value)}
               placeholder="eng"
               maxLength={3}
               className="w-full border border-input/80 bg-background/50 focus:bg-background rounded-md px-3 py-2 text-sm uppercase tracking-widest"
@@ -253,7 +380,7 @@ export function SyncedLyricsSection({
             </label>
             <input
               value={currentSylt.description || ""}
-              onChange={e => handleSyltField("description", e.target.value)}
+              onChange={(e) => handleSyltField("description", e.target.value)}
               placeholder="Lyrics"
               className="w-full border border-input/80 bg-background/50 focus:bg-background rounded-md px-3 py-2 text-sm"
             />
@@ -269,7 +396,7 @@ export function SyncedLyricsSection({
             </div>
             <textarea
               value={currentUslt.lyrics || autoUSLT}
-              onChange={e => handleUsltField("lyrics", e.target.value)}
+              onChange={(e) => handleUsltField("lyrics", e.target.value)}
               rows={4}
               placeholder="Paste the full lyric sheet if you don’t need timestamps."
               className="w-full border border-input/80 bg-background/50 focus:bg-background rounded-md px-3 py-2 text-sm font-mono"
@@ -294,66 +421,28 @@ export function SyncedLyricsSection({
             </button>
           </div>
           <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
-            {currentSylt.text?.map((entry, index) => (
-              <LyricEntry
-                key={index}
-                index={index}
-                text={entry[0]}
-                timestamp={entry[1]}
-                onUpdate={handleUpdateEntry}
-                onDelete={handleDeleteEntry}
-              />
-            ))}
+            {Array.isArray(currentSylt.text) &&
+              currentSylt.text
+                .filter(
+                  (entry): entry is [string, number] =>
+                    Array.isArray(entry) &&
+                    entry.length === 2 &&
+                    typeof entry[0] === "string" &&
+                    typeof entry[1] === "number"
+                )
+                .map((entry, index) => (
+                  <LyricEntry
+                    key={index}
+                    index={index}
+                    text={entry[0]}
+                    timestamp={entry[1]}
+                    onUpdate={handleUpdateEntry}
+                    onDelete={handleDeleteEntry}
+                  />
+                ))}
           </div>
         </div>
       </div>
     </section>
-  );
-}
-
-interface LyricEntryProps {
-  index: number;
-  text: string;
-  timestamp: number;
-  onUpdate: (index: number, text: string, timestamp: number) => void;
-  onDelete: (index: number) => void;
-}
-
-function LyricEntry({
-  index,
-  text,
-  timestamp,
-  onUpdate,
-  onDelete,
-}: LyricEntryProps) {
-  return (
-    <div className="flex flex-col gap-2 rounded-lg border border-input/60 bg-background/60 p-3 sm:flex-row sm:items-center sm:gap-3">
-      <input
-        value={text}
-        onChange={e => onUpdate(index, e.target.value, timestamp)}
-        placeholder="Lyrics text"
-        className="flex-1 border border-input/60 rounded-md px-3 py-2 text-sm"
-      />
-      <div className="flex items-center gap-2">
-        <Clock className="h-4 w-4 icon-accent" />
-        <input
-          type="number"
-          value={timestamp}
-          onChange={e => onUpdate(index, text, parseInt(e.target.value) || 0)}
-          placeholder="ms"
-          className="w-24 border border-input/60 rounded-md px-2 py-2 text-sm"
-        />
-      </div>
-      <button
-        onClick={() => onDelete(index)}
-        className="btn"
-        data-variant="soft"
-        data-tone="danger"
-        data-size="sm"
-        type="button"
-      >
-        <Trash2 className="h-4 w-4" />
-      </button>
-    </div>
   );
 }
